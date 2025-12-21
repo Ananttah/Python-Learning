@@ -1,0 +1,277 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="icon" type="image/png" sizes="32x32" href="/static/favicon-32x32.png">
+    <link rel="icon" type="image/x16" sizes="16x16" href="/static/favicon-16x16.png">
+    <title>Multiple URL Opener</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        // Utility functions
+        function getDomainFromUrl(url) {
+            try {
+                const domain = new URL(url).hostname;
+                return domain.replace('www.', '');
+            } catch {
+                return url.split('/')[0].replace('www.', '');
+            }
+        }
+
+        function saveToHistory(urls) {
+            const timestamp = new Date().toISOString();
+            const history = JSON.parse(localStorage.getItem('urlHistory') || '[]');
+            history.unshift({
+                timestamp,
+                urls,
+                count: urls.length
+            });
+            // Keep only last 10 entries
+            if (history.length > 10) history.length = 10;
+            localStorage.setItem('urlHistory', JSON.stringify(history));
+            updateHistory();
+        }
+
+        function updateHistory() {
+            const history = JSON.parse(localStorage.getItem('urlHistory') || '[]');
+            const historyHtml = history.map(entry => `
+                <div class="border-b border-gray-200 py-3">
+                    <div class="flex justify-between items-center">
+                        <span class="text-sm text-gray-600">${new Date(entry.timestamp).toLocaleString()}</span>
+                        <span class="text-sm font-semibold">${entry.urls.length} URLs</span>
+                    </div>
+                    <button 
+                        onclick='document.getElementById("urls").value = ${JSON.stringify(entry.urls.join("\n"))}'
+                        class="text-blue-500 hover:text-blue-600 text-sm mt-1"
+                    >
+                        Load URLs
+                    </button>
+                </div>
+            `).join('');
+            document.getElementById('historyList').innerHTML = historyHtml;
+        }
+
+        function updateAnalytics(urls) {
+            // Get existing analytics or initialize
+            let analytics = JSON.parse(localStorage.getItem('urlAnalytics') || '{}');
+            
+            // Process new URLs
+            const domains = urls.map(getDomainFromUrl);
+            domains.forEach(domain => {
+                analytics[domain] = (analytics[domain] || 0) + 1;
+            });
+            
+            // Store updated analytics
+            localStorage.setItem('urlAnalytics', JSON.stringify(analytics));
+            
+            // Display analytics
+            displayAnalytics();
+        }
+        
+        function displayAnalytics() {
+            const analytics = JSON.parse(localStorage.getItem('urlAnalytics') || '{}');
+            
+            const sortedDomains = Object.entries(analytics)
+                .sort(([,a], [,b]) => b - a)
+                .slice(0, 5);
+        
+            const analyticsHtml = sortedDomains.length > 0 ? 
+                sortedDomains.map(([domain, count]) => `
+                    <div class="flex justify-between items-center py-2">
+                        <span class="text-sm">${domain}</span>
+                        <span class="text-sm font-semibold">${count}</span>
+                    </div>
+                `).join('') :
+                '<p class="text-gray-600 text-sm">No data yet</p>';
+        
+            document.getElementById('analytics').innerHTML = analyticsHtml;
+        }
+
+        // Main functions
+        function openUrls(random = false) {
+            const urlsText = document.getElementById('urls').value;
+            let urls = urlsText.split('\n').filter(url => url.trim() !== '');
+            
+            // Validate and format URLs
+            urls = urls.map(url => {
+                if (!url.startsWith('http://') && !url.startsWith('https://')) {
+                    return 'https://' + url;
+                }
+                return url;
+            });
+
+            // Randomize if requested
+            if (random) {
+                urls = urls.sort(() => Math.random() - 0.5);
+            }
+            
+            // Open URLs
+            urls.forEach(url => {
+                window.open(url, '_blank');
+            });
+            
+            // Update analytics and history
+            updateAnalytics(urls);
+            saveToHistory(urls);
+            
+            // Update counter
+            document.getElementById('urlCount').textContent = `${urls.length} URLs`;
+        }
+        
+        function countUrls() {
+            const urlsText = document.getElementById('urls').value;
+            const urls = urlsText.split('\n').filter(url => url.trim() !== '');
+            document.getElementById('urlCount').textContent = `${urls.length} URLs`;
+        }
+
+        function resetAnalytics() {
+          localStorage.removeItem('urlAnalytics');
+          displayAnalytics();
+         }
+
+        // Initialize on page load
+        window.onload = function() {
+            updateHistory();
+            displayAnalytics(); 
+        }
+    </script>
+</head>
+<body class="bg-gray-50 min-h-screen">
+    <div class="flex min-h-screen">
+        <!-- Left Ad Sidebar  
+        <div class="hidden lg:block w-44 p-4 bg-white">
+            <div class="h-full border-2 border-dashed border-gray-200 rounded-lg flex items-center justify-center">
+                <span class="text-gray-400">Left Ad Space</span>
+            </div>
+        </div> -->
+
+        <!-- Main Content -->
+        <div class="flex-1">
+            <div class="container mx-auto px-4 py-8 max-w-5xl">
+                <!-- Header -->
+                <header class="text-center mb-8">
+                    <h1 class="text-3xl font-bold text-gray-800 mb-2">Multiple URL Opener</h1>
+                    <p class="text-gray-600">Paste your URLs below and open them all at once</p>
+                </header>
+
+                <!-- Main URL Input - Now full width -->
+                <div class="mb-8">
+                    <div class="bg-white rounded-lg shadow-md p-6">
+                        <textarea 
+                            id="urls"
+                            class="w-full h-64 p-4 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 mb-4"
+                            placeholder="Enter your URLs here (one per line)&#10;Example:&#10;google.com&#10;github.com&#10;stackoverflow.com"
+                            onkeyup="countUrls()"
+                        ></textarea>
+
+                        <div class="flex items-center justify-between mb-4">
+                            <span id="urlCount" class="text-gray-600">0 URLs</span>
+                            <div class="space-x-2">
+                                <button 
+                                    onclick="openUrls(false)"
+                                    class="bg-blue-500 hover:bg-blue-600 text-white font-semibold py-2 px-4 rounded-lg transition-colors"
+                                >
+                                    Open All URLs
+                                </button>
+                                <button 
+                                    onclick="openUrls(true)"
+                                    class="bg-green-500 hover:bg-green-600 text-white font-semibold py-2 px-4 rounded-lg transition-colors"
+                                >
+                                    Open Randomly
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Analytics and History in split view -->
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <!-- Analytics -->
+                    <div class="bg-white rounded-lg shadow-md p-6">
+                        <div class="flex justify-between items-center mb-4">
+                            <h2 class="font-semibold text-gray-800">Top Domains</h2>
+                            <button onclick="resetAnalytics()" 
+                                class="text-sm text-red-500 hover:text-red-600">
+                                Reset Stats
+                            </button>
+                        </div>
+                        <div id="analytics" class="space-y-2 h-48 overflow-y-auto pr-2 scrollbar">
+                            <p class="text-gray-600 text-sm">No data yet</p>
+                        </div>
+                    </div>
+
+                    <!-- History -->
+                    <div class="bg-white rounded-lg shadow-md p-6">
+                        <h2 class="font-semibold text-gray-800 mb-4">Recent History</h2>
+                        <div id="historyList" class="space-y-2 h-48 overflow-y-auto pr-2 scrollbar">
+                            <p class="text-gray-600 text-sm">No history yet</p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Bottom Banner Ad
+                <div class="mt-8 h-24 bg-white rounded-lg">
+                    <div class="h-full border-2 border-dashed border-gray-200 rounded-lg flex items-center justify-center">
+                        <span class="text-gray-400">Bottom Banner Ad Space</span>
+                    </div>
+                </div> -->
+
+
+                
+            </div>
+        </div>
+
+
+        <!-- Right Ad Sidebar 
+        <div class="hidden lg:block w-44 p-4 bg-white">
+            <div class="h-full border-2 border-dashed border-gray-200 rounded-lg flex items-center justify-center">
+                <span class="text-gray-400">Right Ad Space</span>
+            </div>
+        </div> -->      
+        
+    </div>
+
+    <style>
+        /* Scrollbar styles remain the same */
+        .scrollbar::-webkit-scrollbar {
+            width: 6px;
+        }
+        
+        .scrollbar::-webkit-scrollbar-track {
+            background: #f1f1f1;
+            border-radius: 3px;
+        }
+        
+        .scrollbar::-webkit-scrollbar-thumb {
+            background: #888;
+            border-radius: 3px;
+        }
+        
+        .scrollbar::-webkit-scrollbar-thumb:hover {
+            background: #555;
+        }
+    </style>
+
+
+
+
+
+
+
+       <footer class="bg-gray-100 border-t">
+         <div class="container mx-auto px-4 py-6">
+           <div class="flex flex-col md:flex-row justify-between items-center">
+             <div class="text-gray-600 text-sm mb-4 md:mb-0">
+               © 2024 URL Opener. All rights reserved.
+             </div>
+             <div class="flex space-x-6">
+               <a href="/about" class="text-gray-600 hover:text-gray-900 text-sm">About Us</a>
+               <a href="/contact" class="text-gray-600 hover:text-gray-900 text-sm">Contact Us</a>
+               <a href="/faq" class="text-gray-600 hover:text-gray-900 text-sm">FAQs</a>
+             </div>
+           </div>
+         </div>
+       </footer>
+
+</body>
+</html>
