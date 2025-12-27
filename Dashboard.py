@@ -49,4 +49,4 @@ try:
         st.success("✅ Price is stable. No action needed.")
 
 except Exception as e:
-    st.error(f"Error connecting to API: {e}")
+    st.error(f"Error connecting to the API: {e}")
